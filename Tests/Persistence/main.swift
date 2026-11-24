@@ -62,6 +62,19 @@ func readSession(_ reader: Reader, at url: URL) throws {
     // PDFKit adds a companion popup to the note when writing it.
     let types = annotations.compactMap(\.type).filter { $0 != "Popup" }.sorted()
     try check(types == ["Highlight", "Ink", "Text"], "All three marks reopen from the original PDF")
+    let highlight = annotations.first { $0.type == "Highlight" }
+    try check(highlight?.bounds == CGRect(x: 30, y: 50, width: 40, height: 12),
+              "The highlight covers the marked area on page 2")
+    let ink = annotations.first { $0.type == "Ink" }
+    guard let stroke = ink?.paths?.first, stroke.elementCount == 2 else {
+        throw CheckFailure("The saved ink annotation lost its line segment")
+    }
+    var points = Array(repeating: CGPoint.zero, count: 3)
+    let first = stroke.element(at: 0, associatedPoints: &points)
+    let start = points[0]
+    let second = stroke.element(at: 1, associatedPoints: &points)
+    try check(first == .moveTo && second == .lineTo && start == .zero && points[0] == CGPoint(x: 30, y: 8),
+              "The ink stroke retains its endpoints")
     try check(annotations.contains { $0.type == "Text" && $0.contents == "Look again." },
               "The note retains its text")
 
