@@ -1,6 +1,6 @@
 # Lumen for Mac
 
-Lumen is a local PDF reader with a cover shelf, pen and highlight tools, typed notes, and persistent bookmarks. The prototype app is named **Folio**.
+Lumen is a local PDF reader with a cover shelf, pen and highlight tools, typed notes, and persistent bookmarks. Lumen uses the same local preferences as its predecessor, Folio. On upgrade, Continue reading and the Books menu use your existing reading position, bookmarks, and PDF folder.
 
 ## Build and open
 
@@ -8,7 +8,7 @@ On a Mac with the macOS 14 SDK or newer and the Xcode command-line tools install
 
 ```sh
 make build
-open Folio.app
+open Lumen.app
 ```
 
 Choose **Browse books** to select a PDF folder, or press **⌘O** to open a PDF directly. Completed marks save to the original PDF.

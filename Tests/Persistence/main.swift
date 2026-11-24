@@ -55,7 +55,10 @@ func writeSession(_ reader: Reader, at url: URL) throws {
 }
 
 func readSession(_ reader: Reader, at url: URL) throws {
-    reader.open(url)
+    try check(reader.folder?.standardizedFileURL == url.deletingLastPathComponent().standardizedFileURL,
+              "The previously chosen PDF folder is restored")
+    guard let resumeURL = reader.lastURL else { throw CheckFailure("Continue reading lost the last book") }
+    reader.open(resumeURL)
     let annotations = try markedPage(in: reader).annotations
     try check(reader.state.bookmarks == [1] && reader.state.page == 2,
               "A new process restores the bookmark on page 2 and the reading position on page 3")
@@ -105,6 +108,7 @@ do {
     let reader = Reader(defaults: defaults)
     switch args[1] {
     case "write":
+        defaults.set(url.deletingLastPathComponent(), forKey: "folder")
         try writeSession(reader, at: url)
         try check(defaults.synchronize(), "Test preferences reach disk before the writer exits")
     case "read":

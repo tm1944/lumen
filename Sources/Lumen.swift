@@ -2,13 +2,13 @@ import PDFKit
 import SwiftUI
 
 @main
-struct Folio: App {
+struct Lumen: App {
     @StateObject private var reader = Reader()
     var body: some Scene {
-        Window("Folio", id: "reader") {
+        Window("Lumen", id: "reader") {
             ReaderWindow(reader: reader)
                 .frame(minWidth: 680, minHeight: 480)
-                .alert("Folio", isPresented: Binding(get: { reader.error != nil }, set: { if !$0 { reader.error = nil } })) {
+                .alert("Lumen", isPresented: Binding(get: { reader.error != nil }, set: { if !$0 { reader.error = nil } })) {
                     Button("OK") { reader.error = nil }
                 } message: { Text(reader.error ?? "") }
         }
