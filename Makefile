@@ -28,6 +28,7 @@ test: .build/persistence-check .build/reading-check .build/markup-check build
 	mkdir -p .build/modules
 	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/PageView.swift Sources/Reader.swift Tests/Reading/main.swift
 
-.build/markup-check: Sources/PageView.swift Sources/Reader.swift Tests/Markup/main.swift Makefile
+MARKUP_SOURCES := $(filter-out Sources/Lumen.swift,$(SOURCES)) $(wildcard Tests/Markup/*.swift)
+.build/markup-check: $(MARKUP_SOURCES) Makefile
 	mkdir -p .build/modules
-	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/PageView.swift Sources/Reader.swift Tests/Markup/main.swift
+	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ $(MARKUP_SOURCES)

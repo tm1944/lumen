@@ -85,6 +85,10 @@ final class BookFile {
     }
 }
 
+enum PageAppearance: String, CaseIterable {
+    case original = "Original", dark = "Dark"
+}
+
 struct ReadingState: Codable {
     var page = 0
     var bookmarks: [Int] = []
@@ -99,6 +103,14 @@ final class Reader: ObservableObject {
     @Published var book: BookFile?
     @Published var lastURL: URL?
     @Published var state = ReadingState()
+    @Published var pageAppearance: PageAppearance {
+        didSet {
+            defaults.set(pageAppearance.rawValue, forKey: "pageAppearance")
+            previewingOriginal = false
+        }
+    }
+    @Published var previewingOriginal = false
+    var displaysDarkPage: Bool { pageAppearance == .dark && !previewingOriginal }
     @Published var tool = ReadingTool.read
     @Published var error: String?
     weak var pdfView: PDFView?
@@ -110,6 +122,7 @@ final class Reader: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        pageAppearance = defaults.string(forKey: "pageAppearance").flatMap(PageAppearance.init(rawValue:)) ?? .original
         folder = defaults.url(forKey: "folder")
         librarySetupError = defaults.string(forKey: "librarySetupError")
         if let data = defaults.data(forKey: "lastBookmark") {
@@ -228,6 +241,7 @@ final class Reader: ObservableObject {
             restored.page = min(max(0, restored.page), next.document.pageCount - 1)
             state = restored
             defaults.set(id, forKey: identity)
+            previewingOriginal = false
             tool = .read
             book = next
             remember(next.url)

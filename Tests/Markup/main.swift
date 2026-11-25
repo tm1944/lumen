@@ -13,15 +13,37 @@ let strokeStart = CGPoint(x: 130, y: 325)
 let strokeEnd = CGPoint(x: 255, y: 410)
 let notePoint = CGPoint(x: 310, y: 425)
 
-func makeFixture(at url: URL, annotated: Bool) throws {
+func makeFixture(at url: URL, annotated: Bool, includeScan: Bool = false) throws {
     var box = CGRect(x: 0, y: 0, width: 440, height: 600)
     guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { throw MarkupFailure("Create fixture") }
     context.beginPDFPage(nil)
-    let line = NSAttributedString(string: "Review this passage today.", attributes: [.font: NSFont.systemFont(ofSize: 20)])
-    context.textPosition = CGPoint(x: 55, y: 510)
-    CTLineDraw(CTLineCreateWithAttributedString(line), context)
-    context.setStrokeColor(CGColor(gray: 0.45, alpha: 1))
-    context.stroke(CGRect(x: 120, y: 315, width: 145, height: 105), width: 2)
+    func drawPage(in canvas: CGContext) {
+        let line = NSAttributedString(string: "Review this passage today.", attributes: [.font: NSFont.systemFont(ofSize: 20)])
+        canvas.textPosition = CGPoint(x: 55, y: 510)
+        CTLineDraw(CTLineCreateWithAttributedString(line), canvas)
+        canvas.setStrokeColor(CGColor(gray: 0.45, alpha: 1))
+        canvas.stroke(CGRect(x: 120, y: 315, width: 145, height: 105), width: 2)
+        if includeScan {
+            canvas.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+            canvas.fill(CGRect(x: 120, y: 90, width: 80, height: 60))
+        }
+    }
+    drawPage(in: context)
+    if includeScan {
+        context.addDestination("text" as CFString, at: CGPoint(x: 0, y: 600))
+        context.endPDFPage()
+        guard let bitmap = CGContext(data: nil, width: 440, height: 600, bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { throw MarkupFailure("Create scan") }
+        bitmap.setFillColor(CGColor.white)
+        bitmap.fill(box)
+        bitmap.setFillColor(CGColor.black)
+        drawPage(in: bitmap)
+        guard let scan = bitmap.makeImage() else { throw MarkupFailure("Create scan image") }
+        context.beginPDFPage(nil)
+        context.draw(scan, in: box)
+        context.setDestination("text" as CFString, for: CGRect(x: 120, y: 90, width: 80, height: 60))
+    }
     context.endPDFPage()
     context.closePDF()
 
@@ -35,18 +57,28 @@ func makeFixture(at url: URL, annotated: Bool) throws {
     }
 }
 
-func gesture(in view: PDFView, page: PDFPage, points: [CGPoint]) throws {
+func gesture(in view: PDFView, page: PDFPage, points: [CGPoint], throughEventQueue: Bool = false) throws {
     guard let window = view.window, let first = points.first, let last = points.last else { throw MarkupFailure("Missing gesture target") }
     func send(_ type: NSEvent.EventType, _ point: CGPoint) throws {
         let location = view.convert(view.convert(point, from: page), to: nil)
         guard let event = NSEvent.mouseEvent(with: type, location: location, modifierFlags: [],
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
             eventNumber: 0, clickCount: 1, pressure: 1) else { throw MarkupFailure("Create mouse event") }
-        window.sendEvent(event)
+        if throughEventQueue { NSApp.postEvent(event, atStart: false) }
+        else { window.sendEvent(event) }
     }
+    try send(.mouseMoved, first)
     try send(.leftMouseDown, first)
     for point in points.dropFirst() { try send(.leftMouseDragged, point) }
     try send(.leftMouseUp, last)
+    if throughEventQueue {
+        // Native PDFKit can track a drag in a nested event loop during mouse-down.
+        let deadline = Date(timeIntervalSinceNow: 0.3)
+        while let event = NSApp.nextEvent(matching: .any, until: deadline, inMode: .default, dequeue: true) {
+            NSApp.sendEvent(event)
+            if Date() >= deadline { break }
+        }
+    }
 }
 
 func descendants(of view: NSView) -> [NSView] {
@@ -59,13 +91,14 @@ func withOpenPage(_ url: URL, defaults: UserDefaults, perform: (Reader, PDFView,
     reader.open(url)
     let window = NSWindow(contentRect: CGRect(x: 60, y: 60, width: 720, height: 640),
                           styleMask: [.titled, .resizable], backing: .buffered, defer: false)
-    window.contentView = NSHostingView(rootView: PageView(reader: reader))
+    window.contentMinSize = NSSize(width: 680, height: 480)
+    window.contentView = NSHostingView(rootView: ReaderWindow(reader: reader))
     let initialSize = window.frame.size
     window.makeKeyAndOrderFront(nil)
     let deadline = Date(timeIntervalSinceNow: 5)
     func fittedPageIsReady() -> Bool {
         guard let view = reader.pdfView, view.window === window, view.currentPage != nil else { return false }
-        return window.frame.size != initialSize && view.bounds.size == window.contentLayoutRect.size
+        return window.frame.size != initialSize && abs(view.bounds.width - window.contentLayoutRect.width) < 1
     }
     while !fittedPageIsReady() && Date() < deadline {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
@@ -170,6 +203,10 @@ do {
         try withOpenPage(url, defaults: defaults, perform: mark)
     case "read":
         try verify(url, annotated: annotated)
+    case "appearance":
+        try checkAppearance(url, defaults: defaults)
+    case "reopen-dark":
+        try checkDarkInteractions(url, defaults: defaults)
     case "failures":
         try checkFailedSaves(url, defaults: defaults)
     default: throw MarkupFailure("Unknown phase")

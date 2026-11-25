@@ -4,6 +4,12 @@ The Mac window check highlights a phrase in selectable text, draws a three-point
 
 In Preview, the yellow highlight covered “this passage”, the pen stroke crossed the rectangle, and the note icon appeared beside it. The earlier circle remained below the figure. Reopening the file with PDFKit recovered the note text “Check the diagonal.” In the Lumen window, marking a read-only PDF or a PDF replaced by another app displayed the corresponding save error. Both files retained their exact bytes.
 
+## Dark page appearance
+
+On macOS 15.7.7, the window test sampled the rendered paper, lettering and a red figure on a selectable PDF page and a raster copy. The original-color preview restored the red figure. A fresh process opened in Dark after the writer quit during a preview. The display-only session left the PDF byte-for-byte identical.
+
+In Dark, a click on the scanned page’s link opened the text page. Dragging selected the expected words. The highlight, pen stroke and note appeared at their intended positions. Opening the saved file in Apple Preview showed black text on white paper, a yellow highlight, an indigo stroke through the figure and an orange note beside it.
+
 ## Consecutive pen strokes
 
 On an M1 MacBook Pro with 8 GB RAM running macOS 15.7.7, an optimized build opened a local copy of a 160-page, 154 MiB synthetic grayscale scan. Five synthetic mouse gestures were delivered to the reading window back to back, with no intentional pause. Each measurement starts at mouse-down and ends when the final mouse-up returns, including the synchronous save.

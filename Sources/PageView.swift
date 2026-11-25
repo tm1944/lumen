@@ -1,3 +1,4 @@
+import CoreImage.CIFilterBuiltins
 import PDFKit
 import SwiftUI
 
@@ -14,6 +15,7 @@ struct PageView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: MarkupView, context: Context) {
+        defer { view.setDarkPage(reader.displaysDarkPage) }
         guard let book = reader.book, view.document !== book.document else { return }
         let page = reader.state.page
         view.restoring = true
@@ -51,6 +53,15 @@ final class MarkupView: PDFView {
     private let preview = StrokePreview()
     private var gesture = ReadingTool.read
     private var initialPage: PDFPage?
+
+    func setDarkPage(_ enabled: Bool) {
+        guard let content = documentView else { return }
+        if enabled, content.contentFilters.isEmpty {
+            content.contentFilters = [CIFilter.colorInvert()]
+        } else if !enabled, !content.contentFilters.isEmpty {
+            content.contentFilters = []
+        }
+    }
 
     func fitWindowOnOpen(to page: PDFPage) {
         initialPage = page
