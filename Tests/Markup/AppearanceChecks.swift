@@ -8,7 +8,6 @@ private func press(_ label: String, in window: NSWindow) throws {
         guard let segment = (0..<picker.segmentCount).first(where: { picker.label(forSegment: $0) == label }) else { continue }
         picker.selectedSegment = segment
         _ = picker.sendAction(picker.action, to: picker.target)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
         return
     }
 
@@ -23,7 +22,17 @@ private func press(_ label: String, in window: NSWindow) throws {
     guard let button = button(in: window), button.accessibilityPerformPress?() == true else {
         throw MarkupFailure("Could not press \(label) in the reading window")
     }
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
+}
+
+private func eventually(_ check: () throws -> Void) throws {
+    let deadline = Date(timeIntervalSinceNow: 3)
+    while true {
+        do { try check(); return }
+        catch {
+            if Date() >= deadline { throw error }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        }
+    }
 }
 
 // Sample the composited window so the check includes PDFKit's paper, text and image layers.
@@ -86,16 +95,16 @@ func checkAppearance(_ url: URL, defaults: UserDefaults) throws {
     try withOpenPage(url, defaults: defaults) { reader, view, _ in
         guard let window = view.window else { throw MarkupFailure("Missing window") }
         try press("Original", in: window)
-        try checkColors(in: view, dark: false)
+        try eventually { try checkColors(in: view, dark: false) }
         try press("Dark", in: window)
-        try checkColors(in: view, dark: true)
+        try eventually { try checkColors(in: view, dark: true) }
         try press("Show original colors", in: window)
-        try checkColors(in: view, dark: false)
+        try eventually { try checkColors(in: view, dark: false) }
         try press("Return to Dark", in: window)
         reader.jump(1)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
-        try checkColors(in: view, dark: true)
+        try eventually { try checkColors(in: view, dark: true) }
         try press("Show original colors", in: window)
+        try eventually { try checkColors(in: view, dark: false) }
     }
     guard try Data(contentsOf: url) == original else { throw MarkupFailure("Display-only session changed PDF bytes") }
     print("PASS: Text page and scan invert, original colors return, PDF bytes remain identical")
@@ -107,12 +116,13 @@ func checkDarkInteractions(_ url: URL, defaults: UserDefaults) throws {
     NSApp.activate(ignoringOtherApps: true)
     try withOpenPage(url, defaults: defaults) { reader, view, scan in
         guard let doc = view.document, doc.index(for: scan) == 1 else { throw MarkupFailure("Reopen on scan") }
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
-        try checkColors(in: view, dark: true)
+        try eventually { try checkColors(in: view, dark: true) }
         let linkPoint = CGPoint(x: 155, y: 120)
         try gesture(in: view, page: scan, points: [linkPoint], throughEventQueue: true)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
-        guard let page = view.currentPage, doc.index(for: page) == 0 else { throw MarkupFailure("Follow link in Dark") }
+        guard let page = doc.page(at: 0) else { throw MarkupFailure("Missing link destination") }
+        try eventually {
+            guard view.currentPage === page else { throw MarkupFailure("Follow link in Dark") }
+        }
         guard let words = doc.findString(passage, withOptions: []).first else { throw MarkupFailure("Locate selectable text") }
         let box = words.bounds(for: page)
         try gesture(in: view, page: page, points: [CGPoint(x: box.minX + 1, y: box.midY),
@@ -120,8 +130,7 @@ func checkDarkInteractions(_ url: URL, defaults: UserDefaults) throws {
         guard view.currentSelection?.string == passage else { throw MarkupFailure("Select text in Dark: \(view.currentSelection?.string ?? "none")") }
         view.clearSelection()
         try mark(reader: reader, view: view, page: page)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
-        try checkColors(in: view, dark: true, marked: true)
+        try eventually { try checkColors(in: view, dark: true, marked: true) }
         try verify(url, annotated: false)
     }
     print("PASS: Dark survives relaunch during a preview; selection, a link and all three markup tools work in Dark")

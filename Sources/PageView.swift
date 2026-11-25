@@ -54,12 +54,15 @@ final class MarkupView: PDFView {
     private var gesture = ReadingTool.read
     private var initialPage: PDFPage?
 
+    private lazy var darkFilter: CIFilter = CIFilter.colorInvert()
+
     func setDarkPage(_ enabled: Bool) {
         guard let content = documentView else { return }
-        if enabled, content.contentFilters.isEmpty {
-            content.contentFilters = [CIFilter.colorInvert()]
-        } else if !enabled, !content.contentFilters.isEmpty {
-            content.contentFilters = []
+        guard enabled || !content.contentFilters.isEmpty else { return }
+        if let index = content.contentFilters.firstIndex(where: { $0 as AnyObject === darkFilter }) {
+            if !enabled { content.contentFilters.remove(at: index) }
+        } else if enabled {
+            content.contentFilters.append(darkFilter)
         }
     }
 
