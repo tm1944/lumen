@@ -147,8 +147,13 @@ final class Reader: ObservableObject {
         }
     }
 
-    private func selectFolder(_ url: URL) {
-        guard url != folder else { return }
+    func selectFolder(_ url: URL) {
+        if url == folder {
+            // Finder may have replaced the directory at the same path.
+            watchFolder()
+            refresh()
+            return
+        }
         books = []
         defaults.removeObject(forKey: "librarySetupError")
         librarySetupError = nil

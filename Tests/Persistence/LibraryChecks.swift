@@ -39,6 +39,15 @@ func checkLibrary(in fixture: URL, defaults: UserDefaults) throws {
     try check(files.fileExists(atPath: first.path) && files.fileExists(atPath: second.path),
               "Existing PDFs survive library setup")
 
+    try files.moveItem(at: library, to: documents.appendingPathComponent("Old Library"))
+    try files.createDirectory(at: library, withIntermediateDirectories: false)
+    reader.selectFolder(library)
+    try waitFor("Reselecting a replaced folder refreshes the shelf") { !reader.scanning && reader.books.isEmpty }
+    try makeBook(at: second)
+    try waitFor("The replacement folder receives live updates") {
+        reader.books.map(\.standardizedFileURL) == [second.standardizedFileURL]
+    }
+
     defaults.set(fixture, forKey: "folder")
     let custom = Reader(defaults: defaults)
     let unused = documents.appendingPathComponent("Unused")
