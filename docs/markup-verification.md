@@ -1,6 +1,6 @@
 # Markup verification
 
-The Mac window check highlights a phrase in selectable text, draws a three-point pen stroke across a figure, and types a note beside it. A second process opens the original PDF and compares the highlight bounds, pen vertices, and note position and text against the fixture. The check runs on a fresh PDF and on one containing an earlier circle annotation.
+The Mac window check highlights a phrase in selectable text, draws a three-point pen stroke across a figure, and types a note beside it. A second process opens the original PDF and compares the highlight bounds, pen placement on the figure, and note position and text against the fixture. The check runs on a fresh PDF and on one containing an earlier circle annotation.
 
 In Preview, the yellow highlight covered “this passage”, the pen stroke crossed the rectangle, and the note icon appeared beside it. The earlier circle remained below the figure. Reopening the file with PDFKit recovered the note text “Check the diagonal.” In the Lumen window, marking a read-only PDF or a PDF replaced by another app displayed the corresponding save error. Both files retained their exact bytes.
 

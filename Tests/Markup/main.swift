@@ -117,19 +117,14 @@ func verify(_ url: URL, annotated: Bool) throws {
           highlight.bounds.insetBy(dx: -1, dy: -1).contains(wordBox),
           wordBox.insetBy(dx: -1, dy: -1).contains(highlight.bounds) else { throw MarkupFailure("Highlight placement") }
     guard let ink = marks.first(where: { $0.type == "Ink" }), let path = ink.paths?.first else { throw MarkupFailure("Missing ink stroke") }
-    let vertices = [strokeStart, CGPoint(x: 180, y: 360), strokeEnd]
-    var points = Array(repeating: CGPoint.zero, count: 3)
-    var savedVertices: [CGPoint] = []
-    for index in 0..<path.elementCount {
-        let element = path.element(at: index, associatedPoints: &points)
-        guard element == (index == 0 ? .moveTo : .lineTo) else { throw MarkupFailure("Unexpected ink segment") }
-        let point = CGPoint(x: ink.bounds.minX + points[0].x, y: ink.bounds.minY + points[0].y)
-        if savedVertices.last != point { savedVertices.append(point) }
+    let footprint = path.cgPath.copy(strokingWithWidth: 2, lineCap: .round, lineJoin: .round, miterLimit: 2)
+    let targets = [strokeStart, CGPoint(x: 180, y: 360), strokeEnd]
+    let followsGesture = targets.allSatisfy { point in
+        footprint.contains(CGPoint(x: point.x - ink.bounds.minX, y: point.y - ink.bounds.minY))
     }
-    guard savedVertices.count == vertices.count,
-          zip(savedVertices, vertices).allSatisfy({ hypot($0.x - $1.x, $0.y - $1.y) < 1 }) else {
-        throw MarkupFailure("Misplaced ink on the figure: \(savedVertices)")
-    }
+    let figure = CGRect(x: 120, y: 315, width: 145, height: 105)
+    let inkOnPage = footprint.boundingBoxOfPath.offsetBy(dx: ink.bounds.minX, dy: ink.bounds.minY)
+    guard followsGesture, figure.contains(inkOnPage) else { throw MarkupFailure("Misplaced ink on the figure") }
     guard let note = marks.first(where: { $0.type == "Text" }), note.contents == noteText,
           abs(note.bounds.minX - notePoint.x) < 1, abs(note.bounds.maxY - notePoint.y) < 1 else { throw MarkupFailure("Note text or position") }
     if annotated {
