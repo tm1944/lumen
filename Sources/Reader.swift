@@ -109,8 +109,17 @@ final class Reader: ObservableObject {
             previewingOriginal = false
         }
     }
+    let sunset: SunsetSchedule
+    private var scheduleChanges: AnyCancellable?
+    @Published var previewingEveningWarmth = false
+    var displayedWarmth: Double {
+        guard !previewingOriginal else { return 0 }
+        if previewingEveningWarmth && sunset.fraction == 0 { return warmth }
+        return warmth * (sunset.fraction ?? 1)
+    }
     @Published var warmth: Double {
         didSet {
+            previewingEveningWarmth = sunset.fraction == 0
             defaults.set(warmth, forKey: "pageWarmth")
             previewingOriginal = false
         }
@@ -126,7 +135,8 @@ final class Reader: ObservableObject {
     private var watcher: DispatchSourceFileSystemObject?
     private var refreshWork: DispatchWorkItem?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, schedule: SunsetSchedule? = nil) {
+        sunset = schedule ?? SunsetSchedule(defaults: defaults)
         self.defaults = defaults
         warmth = min(1, max(0, defaults.double(forKey: "pageWarmth")))
         pageAppearance = defaults.string(forKey: "pageAppearance").flatMap(PageAppearance.init(rawValue:)) ?? .original
@@ -137,6 +147,7 @@ final class Reader: ObservableObject {
             lastURL = try? URL(resolvingBookmarkData: data, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale)
         }
         if lastURL == nil { lastURL = defaults.url(forKey: "lastURL") }
+        scheduleChanges = sunset.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
     }
 
     func prepareLibrary(in documentsDirectory: URL? = nil, retry: Bool = false) {

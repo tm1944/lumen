@@ -4,6 +4,9 @@
 <key>CFBundleExecutable</key><string>Lumen</string>
 <key>CFBundleIdentifier</key><string>local.folio.reader</string>
 <key>CFBundleName</key><string>Lumen</string>
+<key>NSLocationUsageDescription</key><string>Lumen uses your approximate location to warm PDF pages at local sunset and cool them at sunrise.</string>
+<key>NSLocationWhenInUseUsageDescription</key><string>Lumen uses your approximate location to warm PDF pages at local sunset and cool them at sunrise.</string>
+<key>NSLocationDefaultAccuracyReduced</key><true/>
 <key>NSDocumentsFolderUsageDescription</key><string>Lumen creates a Lumen Library folder in Documents for the PDFs you want to read.</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1</string>

@@ -1,6 +1,6 @@
 import PDFKit
 
-private func press(_ label: String, in window: NSWindow) throws {
+func press(_ label: String, in window: NSWindow) throws {
     NSApp.accessibilitySetValue(true, forAttribute: .init(rawValue: "AXEnhancedUserInterface"))
     guard let content = window.contentView else { throw MarkupFailure("Missing window content") }
     let controls = descendants(of: content)
@@ -11,20 +11,22 @@ private func press(_ label: String, in window: NSWindow) throws {
         return
     }
 
-    // SwiftUI also publishes accessibility elements that aren't NSViews.
-    func button(in node: AnyObject) -> AnyObject? {
-        if node.accessibilityLabel?() == label || node.accessibilityHelp?() == label { return node }
-        for child in node.accessibilityChildren?() ?? [] {
-            if let found = button(in: child as AnyObject) { return found }
-        }
-        return nil
-    }
-    guard let button = button(in: window), button.accessibilityPerformPress?() == true else {
+    let button = accessibilityElement(in: window) { $0.accessibilityLabel?() == label || $0.accessibilityHelp?() == label }
+    guard button?.accessibilityPerformPress?() == true else {
         throw MarkupFailure("Could not press \(label) in the reading window")
     }
 }
 
-private func eventually(_ check: () throws -> Void) throws {
+// SwiftUI also publishes accessibility elements that aren't NSViews.
+func accessibilityElement(in node: AnyObject, matching matches: (AnyObject) -> Bool) -> AnyObject? {
+    if matches(node) { return node }
+    for child in node.accessibilityChildren?() ?? [] {
+        if let found = accessibilityElement(in: child as AnyObject, matching: matches) { return found }
+    }
+    return nil
+}
+
+func eventually(_ check: () throws -> Void) throws {
     let deadline = Date(timeIntervalSinceNow: 3)
     while true {
         do { try check(); return }
@@ -36,7 +38,7 @@ private func eventually(_ check: () throws -> Void) throws {
 }
 
 // Sample the composited window so the check includes PDFKit's paper, text and image layers.
-private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false, warmth: ClosedRange<CGFloat> = -0.05...0.05) throws {
+func checkColors(in view: PDFView, dark: Bool, marked: Bool = false, checkFigure: Bool = true, warmth: ClosedRange<CGFloat> = -0.05...0.05) throws {
     guard let window = view.window, let page = view.currentPage else { throw MarkupFailure("Missing page") }
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
     defer { try? FileManager.default.removeItem(at: url) }
@@ -68,7 +70,7 @@ private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false, war
     let redOverBlue = direction * (figure.redComponent - figure.blueComponent)
     guard matches(paper.redComponent, bright: !dark),
           !dark || (matches(paper.greenComponent, bright: false) && matches(paper.blueComponent, bright: false)),
-          redOverGreen > 0.3, redOverBlue > (warmth.upperBound > 0.05 ? 0.05 : 0.4)
+          (!checkFigure || (redOverGreen > 0.3 && redOverBlue > (warmth.upperBound > 0.05 ? 0.05 : 0.4)))
     else { throw MarkupFailure("Wrong page colors (dark=\(dark)): paper \(paper), figure \(figure)") }
     // The fixture has black lettering at this position on both the text page and its scan.
     var letters: [NSColor] = []
@@ -154,10 +156,10 @@ func checkDarkInteractions(_ url: URL, defaults: UserDefaults) throws {
     print("PASS: Dark survives relaunch during a preview; selection, a link and all three markup tools work in Dark")
 }
 
-private let midpointTone: ClosedRange<CGFloat> = 0.06...0.17
-private let warmestTone: ClosedRange<CGFloat> = 0.19...0.65
+let midpointTone: ClosedRange<CGFloat> = 0.06...0.17
+let warmestTone: ClosedRange<CGFloat> = 0.19...0.65
 
-private func dragWarmthSlider(to fraction: Double, checkWhileDragging: () throws -> Void) throws {
+func dragWarmthSlider(to fraction: Double, checkWhileDragging: () throws -> Void) throws {
     var control: NSSlider?
     try eventually {
         control = NSApp.windows.filter(\.isVisible).compactMap(\.contentView)

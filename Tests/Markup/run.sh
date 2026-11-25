@@ -18,3 +18,7 @@ done
 "$1" reopen-dark "$fixture/appearance.pdf" plain "$suite"
 "$1" warmth "$fixture/appearance.pdf" plain "$suite"
 "$1" reopen-warm "$fixture/appearance.pdf" plain "$suite"
+for appearance in original dark; do
+    "$1" sunset "$fixture/appearance.pdf" "$appearance" "$suite"
+    "$1" reopen-sunset "$fixture/appearance.pdf" "$appearance" "$suite"
+done

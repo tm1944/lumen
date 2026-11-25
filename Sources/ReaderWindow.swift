@@ -26,16 +26,27 @@ struct ReaderWindow: View {
                                 Text(appearance.rawValue).tag(appearance)
                             }
                         }.pickerStyle(.segmented).labelsHidden().fixedSize()
-                        Button("Warmth") { showingWarmth.toggle() }
+                        Button("Warmth") { showingWarmth.toggle() }.fixedSize()
                             .popover(isPresented: $showingWarmth, arrowEdge: .top) {
-                                HStack {
-                                    Text("Neutral")
-                                    Slider(value: $reader.warmth, in: 0...1) { Text("Page warmth") }
-                                        .labelsHidden()
-                                    Text("Warm")
-                                }.padding().frame(width: 280)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text("Neutral")
+                                        Slider(value: $reader.warmth, in: 0...1) { Text("Page warmth") }
+                                            .labelsHidden()
+                                        Text("Warm")
+                                    }
+                                    Toggle("Warm automatically at sunset", isOn: Binding(get: { reader.sunset.enabled }, set: { reader.sunset.enabled = $0 }))
+                                    if reader.sunset.enabled {
+                                        if let message = reader.sunset.locationMessage {
+                                            Text(message).font(.callout).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                                            Button("Retry location") { reader.sunset.requestLocation() }
+                                        } else if reader.sunset.fraction == nil {
+                                            Text("Finding approximate location…").font(.callout)
+                                        }
+                                    }
+                                }.padding().frame(width: 300)
                             }
-                        if reader.pageAppearance == .dark || reader.warmth > 0 {
+                        if reader.pageAppearance == .dark || reader.displayedWarmth > 0 || reader.previewingOriginal {
                             Button { reader.previewingOriginal.toggle() } label: {
                                 Label(previewLabel,
                                       systemImage: reader.previewingOriginal ? "eye.fill" : "eye")
@@ -64,6 +75,9 @@ struct ReaderWindow: View {
                     }
                 }.padding(48).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
+        }
+        .onChange(of: showingWarmth) {
+            if !showingWarmth { reader.previewingEveningWarmth = false }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {

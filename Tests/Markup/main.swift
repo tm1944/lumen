@@ -88,9 +88,9 @@ func descendants(of view: NSView) -> [NSView] {
     [view] + view.subviews.flatMap { descendants(of: $0) }
 }
 
-func withOpenPage(_ url: URL, defaults: UserDefaults, perform: (Reader, PDFView, PDFPage) throws -> Void) throws {
+func withOpenPage(_ url: URL, defaults: UserDefaults, schedule: SunsetSchedule? = nil, perform: (Reader, PDFView, PDFPage) throws -> Void) throws {
     _ = NSApplication.shared
-    let reader = Reader(defaults: defaults)
+    let reader = Reader(defaults: defaults, schedule: schedule)
     reader.open(url)
     let window = NSWindow(contentRect: CGRect(x: 60, y: 60, width: 720, height: 640),
                           styleMask: [.titled, .resizable], backing: .buffered, defer: false)
@@ -208,6 +208,10 @@ do {
         try verify(url, annotated: annotated)
     case "appearance":
         try checkAppearance(url, defaults: defaults)
+    case "sunset":
+        try checkSunset(url, defaults: defaults, dark: args[3] == "dark")
+    case "reopen-sunset":
+        try checkSunsetRelaunch(url, defaults: defaults, dark: args[3] == "dark")
     case "warmth":
         try checkWarmth(url, defaults: defaults)
     case "reopen-warm":

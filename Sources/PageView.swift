@@ -15,7 +15,7 @@ struct PageView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: MarkupView, context: Context) {
-        defer { view.setPageAppearance(dark: reader.displaysDarkPage, warmth: reader.previewingOriginal ? 0 : reader.warmth) }
+        defer { view.setPageAppearance(dark: reader.displaysDarkPage, warmth: reader.displayedWarmth) }
         guard let book = reader.book, view.document !== book.document else { return }
         let page = reader.state.page
         view.restoring = true

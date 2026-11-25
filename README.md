@@ -17,6 +17,8 @@ Books open one page at a time. Use the page arrows to turn pages, or use the Vie
 
 Choose **Dark** below the page for black paper and light text, including in scans. Open **Warmth** and drag the slider toward **Warm** for cream paper in Original or warmer lettering in Dark. Click the eye to inspect a figure in its original colors, and click again to restore your settings. Lumen remembers both settings across books and launches. These controls only affect the reading window.
 
+In **Warmth**, turn on **Warm automatically at sunset** and allow approximate location. The page fades to your slider setting over the 30 minutes after local sunset and returns to neutral over the 30 minutes after sunrise. During daylight, drag to preview your evening setting and close the popover to return to neutral. If location is unavailable, the slider still works manually.
+
 ## Run the checks
 
 ```sh
