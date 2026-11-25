@@ -13,6 +13,7 @@ struct SunsetClock {
 }
 
 enum SunsetLocationUpdate {
+    case authorized
     case located(CLLocationCoordinate2D)
     case denied, unavailable
 }
@@ -51,7 +52,9 @@ final class MacSunsetLocation: NSObject, CLLocationManagerDelegate, SunsetLocati
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         guard manager === self.manager else { return }
         switch manager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse: manager.startUpdatingLocation()
+        case .authorizedAlways, .authorizedWhenInUse:
+            receive?(.authorized)
+            manager.startUpdatingLocation()
         case .notDetermined: break
         default: receive?(.denied)
         }
@@ -115,6 +118,7 @@ final class SunsetSchedule: ObservableObject {
     private let defaults: UserDefaults
     private let source: SunsetLocationSource
     private let clock: SunsetClock
+    private let coordinateKey = "sunsetApproximateCoordinate"
     private var coordinate: CLLocationCoordinate2D?
     private var subscriptions = Set<AnyCancellable>()
 
@@ -132,6 +136,7 @@ final class SunsetSchedule: ObservableObject {
         subscriptions.removeAll()
         guard enabled else {
             source.stop()
+            defaults.removeObject(forKey: coordinateKey)
             coordinate = nil
             fraction = nil
             locationMessage = nil
@@ -153,14 +158,29 @@ final class SunsetSchedule: ObservableObject {
         source.start { [weak self] event in
             guard let self, self.enabled else { return }
             switch event {
-            case .located(let coordinate):
+            case .authorized:
+                self.locationMessage = nil
+                // Only reuse a previous location after macOS confirms current permission.
+                if self.coordinate == nil, let pair = self.defaults.array(forKey: self.coordinateKey) as? [Double], pair.count == 2 {
+                    let cached = CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
+                    if CLLocationCoordinate2DIsValid(cached) {
+                        self.coordinate = cached
+                        self.update(at: self.clock.now())
+                    }
+                }
+            case .located(let fix):
+                // A quarter-degree grid is sufficient for this reading schedule.
+                let coordinate = CLLocationCoordinate2D(latitude: (fix.latitude * 4).rounded() / 4,
+                                                        longitude: (fix.longitude * 4).rounded() / 4)
                 self.coordinate = coordinate
+                self.defaults.set([coordinate.latitude, coordinate.longitude], forKey: self.coordinateKey)
                 self.locationMessage = nil
                 self.update(at: self.clock.now())
             case .denied, .unavailable:
                 self.coordinate = nil
                 self.fraction = nil
                 if case .denied = event {
+                    self.defaults.removeObject(forKey: self.coordinateKey)
                     self.locationMessage = "Allow Lumen in System Settings → Privacy & Security → Location Services. You can still adjust warmth manually."
                 } else {
                     self.locationMessage = "Location is unavailable. Retry when your Mac can determine its location. Manual warmth is available."

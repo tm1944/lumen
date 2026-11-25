@@ -5,11 +5,13 @@ import PDFKit
 private final class TestSunsetLocation: SunsetLocationSource {
     var result: SunsetLocationUpdate = .denied
     var requests = 0
+    var deliver: ((SunsetLocationUpdate) -> Void)?
     func start(_ receive: @escaping (SunsetLocationUpdate) -> Void) {
         requests += 1
+        deliver = receive
         receive(result)
     }
-    func stop() {}
+    func stop() { deliver = nil }
 }
 
 private func date(_ utc: String) -> Date {
@@ -39,7 +41,8 @@ func checkSunset(_ url: URL, defaults: UserDefaults, dark: Bool) throws {
         now = date(utc)
         ticks.send(now)
     }
-    try withOpenPage(url, defaults: defaults, schedule: schedule) { _, view, _ in
+    try withOpenPage(url, defaults: defaults, schedule: schedule) { reader, view, _ in
+        reader.jump(0)
         guard let window = view.window, location.requests == 0 else { throw MarkupFailure("Location requested before opt-in") }
         try press(dark ? "Dark" : "Original", in: window)
         try press("Warmth", in: window)
@@ -84,12 +87,29 @@ func checkSunset(_ url: URL, defaults: UserDefaults, dark: Bool) throws {
 
 func checkSunsetRelaunch(_ url: URL, defaults: UserDefaults, dark: Bool) throws {
     let location = TestSunsetLocation()
-    location.result = .located(equator)
-    let clock = SunsetClock(now: { date("2025-03-22T02:00:00Z") }, ticks: Empty().eraseToAnyPublisher())
+    location.result = .authorized // The fresh fix hasn't arrived yet.
+    var now = date("2025-03-21T23:27:00Z")
+    let ticks = PassthroughSubject<Date, Never>()
+    let clock = SunsetClock(now: { now }, ticks: ticks.eraseToAnyPublisher())
     let schedule = SunsetSchedule(defaults: defaults, source: location, clock: clock)
     try withOpenPage(url, defaults: defaults, schedule: schedule) { _, view, _ in
         guard let window = view.window, location.requests == 1 else { throw MarkupFailure("Restore enabled schedule") }
+        try eventually { try checkColors(in: view, dark: dark, checkFigure: false, warmth: 0.03...0.08) }
+        now = date("2025-03-22T02:00:00Z")
+        ticks.send(now)
         try eventually { try checkColors(in: view, dark: dark, checkFigure: false, warmth: midpointTone) }
+        // At this same UTC instant it is daylight at the new longitude.
+        location.deliver?(.located(CLLocationCoordinate2D(latitude: 0, longitude: 150)))
+        try eventually { try checkColors(in: view, dark: dark, checkFigure: false) }
+
+        // Tromsø has polar night in December and midnight sun in June.
+        location.deliver?(.located(CLLocationCoordinate2D(latitude: 69.65, longitude: 18.96)))
+        now = date("2025-12-21T12:00:00Z")
+        ticks.send(now)
+        try eventually { try checkColors(in: view, dark: dark, checkFigure: false, warmth: midpointTone) }
+        now = date("2025-06-21T00:00:00Z")
+        ticks.send(now)
+        try eventually { try checkColors(in: view, dark: dark, checkFigure: false) }
         try press("Warmth", in: window)
         try pressInPopover("Warm automatically at sunset")
         try dragWarmthSlider(to: 1) { try checkColors(in: view, dark: dark, checkFigure: false, warmth: warmestTone) }

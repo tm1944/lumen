@@ -114,12 +114,14 @@ final class Reader: ObservableObject {
     @Published var previewingEveningWarmth = false
     var displayedWarmth: Double {
         guard !previewingOriginal else { return 0 }
-        if previewingEveningWarmth && sunset.fraction == 0 { return warmth }
-        return warmth * (sunset.fraction ?? 1)
+        guard sunset.enabled, sunset.locationMessage == nil else { return warmth }
+        let fraction = sunset.fraction ?? 0
+        if previewingEveningWarmth && fraction == 0 { return warmth }
+        return warmth * fraction
     }
     @Published var warmth: Double {
         didSet {
-            previewingEveningWarmth = sunset.fraction == 0
+            previewingEveningWarmth = sunset.enabled && sunset.locationMessage == nil && (sunset.fraction ?? 0) == 0
             defaults.set(warmth, forKey: "pageWarmth")
             previewingOriginal = false
         }

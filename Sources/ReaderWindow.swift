@@ -35,7 +35,10 @@ struct ReaderWindow: View {
                                             .labelsHidden()
                                         Text("Warm")
                                     }
-                                    Toggle("Warm automatically at sunset", isOn: Binding(get: { reader.sunset.enabled }, set: { reader.sunset.enabled = $0 }))
+                                    Toggle("Warm automatically at sunset", isOn: Binding(get: { reader.sunset.enabled }, set: { enabled in
+                                        reader.previewingEveningWarmth = false
+                                        reader.sunset.enabled = enabled
+                                    }))
                                     if reader.sunset.enabled {
                                         if let message = reader.sunset.locationMessage {
                                             Text(message).font(.callout).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
