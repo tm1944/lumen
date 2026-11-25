@@ -39,6 +39,9 @@ func makeFixture(at url: URL, annotated: Bool, includeScan: Bool = false) throws
         bitmap.fill(box)
         bitmap.setFillColor(CGColor.black)
         drawPage(in: bitmap)
+        // This blue patch identifies the rendered scan even during a page turn.
+        bitmap.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
+        bitmap.fill(CGRect(x: 300, y: 90, width: 35, height: 35))
         guard let scan = bitmap.makeImage() else { throw MarkupFailure("Create scan image") }
         context.beginPDFPage(nil)
         context.draw(scan, in: box)

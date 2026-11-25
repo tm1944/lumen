@@ -55,6 +55,11 @@ private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false, war
         guard let rgb = image.colorAt(x: col, y: row)?.usingColorSpace(.sRGB) else { throw MarkupFailure("Sample outside window") }
         return rgb
     }
+    if view.document?.index(for: page) == 1 {
+        let patch = try color(317, 107)
+        let contrast = patch.blueComponent - patch.redComponent
+        guard (dark ? -contrast : contrast) > 0.3 else { throw MarkupFailure("Scan marker is not visible") }
+    }
     let paper = try color(90, 400)
     let figure = try color(155, 120)
     func matches(_ value: CGFloat, bright: Bool) -> Bool { bright ? value > 0.85 : value < 0.15 }
@@ -191,7 +196,11 @@ func checkWarmth(_ url: URL, defaults: UserDefaults) throws {
         try eventually { try checkColors(in: view, dark: false) }
         try press("Return to Dark", in: window)
         reader.jump(1)
-        try eventually { try checkColors(in: view, dark: true, warmth: warmestTone) }
+        try eventually {
+            guard let scan = view.document?.page(at: 1), view.visiblePages == [scan], view.currentPage === scan
+            else { throw MarkupFailure("Turn to the scanned page") }
+            try checkColors(in: view, dark: true, warmth: warmestTone)
+        }
         try press("Warmth", in: window)
         try dragWarmthSlider(to: 0) { try checkColors(in: view, dark: true) }
         try dragWarmthSlider(to: 0.5) { try checkColors(in: view, dark: true, warmth: midpointTone) }
