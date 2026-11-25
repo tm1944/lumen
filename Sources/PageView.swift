@@ -92,7 +92,9 @@ final class MarkupView: PDFView {
 
     @objc private func pageChanged() {
         guard !restoring, let doc = document, doc === reader?.book?.document, let currentPage else { return }
-        reader?.recordPage(doc.index(for: currentPage))
+        let index = doc.index(for: currentPage)
+        if reader?.state.page != index, !autoScales { autoScales = true }
+        reader?.recordPage(index)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {

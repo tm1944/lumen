@@ -11,8 +11,12 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) throws {
     print("PASS: \(message)")
 }
 
-func settle() {
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+func waitFor(_ message: String, until ready: () -> Bool) throws {
+    let deadline = Date(timeIntervalSinceNow: 5)
+    while !ready() && Date() < deadline {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+    }
+    try expect(ready(), message)
 }
 
 func makeBook(at url: URL) throws {
@@ -29,11 +33,12 @@ func makeBook(at url: URL) throws {
 }
 
 func checkFit(_ view: PDFView, pageNumber: Int) throws {
-    guard let page = view.currentPage, let document = view.document else { throw Failure("No page visible") }
-    try expect(document.index(for: page) == pageNumber - 1 && view.visiblePages == [page],
-               "Only page \(pageNumber) is visible")
-    let rect = view.convert(page.bounds(for: view.displayBox), from: page)
-    try expect(view.bounds.insetBy(dx: -1, dy: -1).contains(rect), "The full page fits in the reader")
+    try waitFor("Page \(pageNumber) is the only visible page and fits entirely in the reader") {
+        guard let page = view.currentPage, view.document?.index(for: page) == pageNumber - 1,
+              view.visiblePages == [page] else { return false }
+        let rect = view.convert(page.bounds(for: view.displayBox), from: page)
+        return !rect.isEmpty && view.bounds.insetBy(dx: -1, dy: -1).contains(rect)
+    }
 }
 
 func run() throws {
@@ -53,23 +58,20 @@ func run() throws {
     window.contentView = NSHostingView(rootView: PageView(reader: reader))
     window.orderFront(nil)
     defer { window.orderOut(nil) }
-    settle()
+    try waitFor("Reader window is ready") { reader.pdfView?.window === window }
     let startingSize = window.frame.size
     reader.open(url)
-    settle()
     guard let view = reader.pdfView else { throw Failure("Missing reading view") }
     try checkFit(view, pageNumber: 1)
     guard let screen = window.screen else { throw Failure("Missing screen") }
+    try waitFor("Opening a portrait book sizes the window to the page") { window.frame.width < startingSize.width }
     try expect(screen.visibleFrame.contains(window.frame), "The initial window and toolbar fit on the screen")
-    try expect(window.frame.width < startingSize.width, "Opening a portrait book sizes the window to the page")
     reader.jump(-1)
     try checkFit(view, pageNumber: 1)
 
     window.setContentSize(NSSize(width: 710, height: 510))
-    settle()
     let resized = window.frame
     reader.jump(1)
-    settle()
     try checkFit(view, pageNumber: 2)
     reader.jump(2)
     try checkFit(view, pageNumber: 2)
@@ -81,14 +83,15 @@ func run() throws {
     guard let content = view.documentView, let scroll = content.enclosingScrollView else { throw Failure("No scroll view") }
     content.scroll(NSPoint(x: content.bounds.maxX, y: 0))
     try expect(scroll.contentView.bounds.minX > 0, "The magnified page can be panned")
-    view.autoScales = true
-    settle()
+    reader.jump(0)
+    try checkFit(view, pageNumber: 1)
+    reader.jump(1)
     try checkFit(view, pageNumber: 2)
 
     let reopened = Reader(defaults: defaults)
     reopened.open(url)
     window.contentView = NSHostingView(rootView: PageView(reader: reopened))
-    settle()
+    try waitFor("Reopened reader is attached") { reopened.pdfView?.window === window }
     guard let restored = reopened.pdfView else { throw Failure("Missing restored view") }
     try checkFit(restored, pageNumber: 2)
 }
