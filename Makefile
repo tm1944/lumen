@@ -15,9 +15,10 @@ $(APP)/Info.plist: Info.plist
 	cp $< $@
 
 .PHONY: test
-test: .build/persistence-check .build/reading-check build
+test: .build/persistence-check .build/reading-check .build/markup-check build
 	sh Tests/Persistence/run.sh $<
 	.build/reading-check
+	sh Tests/Markup/run.sh .build/markup-check
 
 .build/persistence-check: Sources/Reader.swift $(wildcard Tests/Persistence/*.swift) Makefile
 	mkdir -p .build/modules
@@ -26,3 +27,7 @@ test: .build/persistence-check .build/reading-check build
 .build/reading-check: Sources/PageView.swift Sources/Reader.swift Tests/Reading/main.swift Makefile
 	mkdir -p .build/modules
 	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/PageView.swift Sources/Reader.swift Tests/Reading/main.swift
+
+.build/markup-check: Sources/PageView.swift Sources/Reader.swift Tests/Markup/main.swift Makefile
+	mkdir -p .build/modules
+	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/PageView.swift Sources/Reader.swift Tests/Markup/main.swift
