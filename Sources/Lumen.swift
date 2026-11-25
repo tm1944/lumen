@@ -8,6 +8,7 @@ struct Lumen: App {
         Window("Lumen", id: "reader") {
             ReaderWindow(reader: reader)
                 .frame(minWidth: 680, minHeight: 480)
+                .onAppear { reader.prepareLibrary() }
                 .alert("Lumen", isPresented: Binding(get: { reader.error != nil }, set: { if !$0 { reader.error = nil } })) {
                     Button("OK") { reader.error = nil }
                 } message: { Text(reader.error ?? "") }
@@ -15,11 +16,7 @@ struct Lumen: App {
         .defaultSize(width: 980, height: 740)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Open PDF…") {
-                    let panel = NSOpenPanel()
-                    panel.allowedContentTypes = [.pdf]
-                    if panel.runModal() == .OK, let url = panel.url { reader.open(url) }
-                }.keyboardShortcut("o")
+                Button("Open PDF…") { reader.choosePDF() }.keyboardShortcut("o")
             }
         }
     }

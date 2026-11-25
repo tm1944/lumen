@@ -92,6 +92,8 @@ struct ReadingState: Codable {
 
 final class Reader: ObservableObject {
     @Published var folder: URL?
+    @Published private(set) var preparingLibrary = false
+    @Published private(set) var librarySetupError: String?
     @Published private(set) var books: [URL] = []
     @Published var scanning = false
     @Published var book: BookFile?
@@ -109,11 +111,49 @@ final class Reader: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         folder = defaults.url(forKey: "folder")
+        librarySetupError = defaults.string(forKey: "librarySetupError")
         if let data = defaults.data(forKey: "lastBookmark") {
             var stale = false
             lastURL = try? URL(resolvingBookmarkData: data, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale)
         }
         if lastURL == nil { lastURL = defaults.url(forKey: "lastURL") }
+    }
+
+    func prepareLibrary(in documentsDirectory: URL? = nil, retry: Bool = false) {
+        guard folder == nil, !preparingLibrary, librarySetupError == nil || retry else { return }
+        preparingLibrary = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result {
+                let files = FileManager.default
+                let documents = try documentsDirectory ?? files.url(for: .documentDirectory, in: .userDomainMask,
+                                                                     appropriateFor: nil, create: false)
+                let library = documents.appendingPathComponent("Lumen Library", isDirectory: true)
+                try files.createDirectory(at: library, withIntermediateDirectories: true)
+                // Opening a directory checks access without scanning every book at launch.
+                guard let directory = opendir(library.path) else { throw POSIXError(.init(rawValue: errno) ?? .EACCES) }
+                closedir(directory)
+                return library
+            }
+            DispatchQueue.main.async {
+                self.preparingLibrary = false
+                guard self.folder == nil else { return } // A folder chosen during setup wins.
+                switch result {
+                case .success(let library): self.selectFolder(library)
+                case .failure(let error):
+                    self.librarySetupError = error.localizedDescription
+                    self.defaults.set(error.localizedDescription, forKey: "librarySetupError")
+                }
+            }
+        }
+    }
+
+    private func selectFolder(_ url: URL) {
+        guard url != folder else { return }
+        books = []
+        defaults.removeObject(forKey: "librarySetupError")
+        librarySetupError = nil
+        defaults.set(url, forKey: "folder")
+        folder = url
     }
 
     func chooseFolder() {
@@ -122,11 +162,14 @@ final class Reader: ObservableObject {
         panel.canChooseFiles = false
         panel.prompt = "Use PDF Folder"
         if panel.runModal() == .OK, let url = panel.url {
-            folder = url
-            defaults.set(url, forKey: "folder")
-            watchFolder()
-            refresh()
+            selectFolder(url)
         }
+    }
+
+    func choosePDF() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.pdf]
+        if panel.runModal() == .OK, let url = panel.url { open(url) }
     }
 
     func watchFolder() {

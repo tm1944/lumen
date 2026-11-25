@@ -54,10 +54,25 @@ struct Shelf: View {
             Divider()
             if reader.books.isEmpty {
                 Spacer()
-                if reader.scanning {
+                if reader.scanning || reader.preparingLibrary {
                     ProgressView().frame(maxWidth: .infinity)
+                } else if let folder = reader.folder {
+                    VStack(spacing: 10) {
+                        Text("Add a PDF to this folder to see its cover here.")
+                            .foregroundStyle(.secondary)
+                        Button("Open folder in Finder") {
+                            if !NSWorkspace.shared.open(folder) { reader.error = "Could not open the PDF folder in Finder." }
+                        }
+                    }.frame(maxWidth: .infinity)
+                } else if let error = reader.librarySetupError {
+                    VStack(spacing: 10) {
+                        Text("Couldn’t open Lumen Library in Documents.")
+                        Text(error).font(.callout).foregroundStyle(.secondary)
+                        Button("Retry library setup") { reader.prepareLibrary(retry: true) }
+                        Button("Open PDF…") { dismiss(); reader.choosePDF() }
+                    }.multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 } else {
-                    Text(reader.folder == nil ? "Choose the folder where you keep your PDFs." : "Add a PDF to this folder to see its cover here.")
+                    Text("Choose the folder where you keep your PDFs.")
                         .foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
                 Spacer()
@@ -86,6 +101,9 @@ struct Shelf: View {
             }
         }
         .padding(18).frame(width: 384, height: 460)
-        .onAppear { reader.watchFolder(); reader.refresh() }
+        .onChange(of: reader.folder, initial: true) {
+            reader.watchFolder()
+            reader.refresh()
+        }
     }
 }

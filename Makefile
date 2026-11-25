@@ -18,6 +18,6 @@ $(APP)/Info.plist: Info.plist
 test: .build/persistence-check build
 	sh Tests/Persistence/run.sh $<
 
-.build/persistence-check: Sources/Reader.swift Tests/Persistence/main.swift Makefile
+.build/persistence-check: Sources/Reader.swift $(wildcard Tests/Persistence/*.swift) Makefile
 	mkdir -p .build/modules
-	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/Reader.swift Tests/Persistence/main.swift
+	xcrun swiftc -swift-version 5 -module-cache-path .build/modules -o $@ Sources/Reader.swift $(wildcard Tests/Persistence/*.swift)

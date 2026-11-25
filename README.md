@@ -11,7 +11,7 @@ make build
 open Lumen.app
 ```
 
-Choose **Browse books** to select a PDF folder, or press **⌘O** to open a PDF directly. Completed marks save to the original PDF.
+On first launch, Lumen creates **Lumen Library** in your Documents folder. Choose **Browse books**, click **Open folder in Finder**, and drop in your PDFs. Their first-page previews appear in the open shelf. You can also choose another folder or press **⌘O** to open a PDF directly. Completed marks save to the original PDF.
 
 ## Test persistence
 

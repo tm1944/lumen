@@ -107,6 +107,8 @@ do {
     let url = URL(fileURLWithPath: args[2], isDirectory: true).appendingPathComponent("Reading.pdf")
     let reader = Reader(defaults: defaults)
     switch args[1] {
+    case "library":
+        try checkLibrary(in: url.deletingLastPathComponent(), defaults: defaults)
     case "write":
         defaults.set(url.deletingLastPathComponent(), forKey: "folder")
         try writeSession(reader, at: url)
