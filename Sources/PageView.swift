@@ -6,9 +6,9 @@ struct PageView: NSViewRepresentable {
     func makeNSView(context: Context) -> MarkupView {
         let view = MarkupView()
         view.reader = reader
-        view.displayMode = .singlePageContinuous
+        view.displayMode = .singlePage
         view.autoScales = true
-        view.displaysPageBreaks = true
+        view.displaysPageBreaks = false
         reader.pdfView = view
         return view
     }
@@ -18,7 +18,11 @@ struct PageView: NSViewRepresentable {
         let page = reader.state.page
         view.restoring = true
         view.document = book.document
-        if let target = book.document.page(at: page) { view.go(to: target) }
+        if let target = book.document.page(at: page) {
+            view.go(to: target)
+            view.autoScales = true
+            view.fitWindowOnOpen(to: target)
+        }
         view.restoring = false
     }
 }
@@ -46,6 +50,38 @@ final class MarkupView: PDFView {
     private var points: [CGPoint] = []
     private let preview = StrokePreview()
     private var gesture = ReadingTool.read
+    private var initialPage: PDFPage?
+
+    func fitWindowOnOpen(to page: PDFPage) {
+        initialPage = page
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        guard let page = initialPage, let window, let screen = window.screen,
+              bounds.width > 0, bounds.height > 0 else { return }
+        initialPage = nil
+        // SwiftUI finishes laying out the toolbar and footer before we measure the window.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.currentPage === page, self.window === window,
+                  !window.styleMask.contains(.fullScreen), !window.inLiveResize else { return }
+            let available = screen.visibleFrame
+            let chrome = NSSize(width: window.frame.width - self.bounds.width,
+                                height: window.frame.height - self.bounds.height)
+            let displayed = self.convert(page.bounds(for: self.displayBox), from: page)
+            let pageSize = NSSize(width: displayed.width / self.scaleFactor, height: displayed.height / self.scaleFactor)
+            guard pageSize.width > 0, pageSize.height > 0 else { return }
+            let scale = min(1, (available.width - chrome.width) / pageSize.width,
+                            (available.height - chrome.height) / pageSize.height)
+            let minimum = window.frameRect(forContentRect: NSRect(origin: .zero, size: window.contentMinSize)).size
+            let width = min(available.width, max(window.minSize.width, minimum.width, ceil(pageSize.width * scale + chrome.width)))
+            let height = min(available.height, max(window.minSize.height, minimum.height, ceil(pageSize.height * scale + chrome.height)))
+            let x = max(available.minX, min(window.frame.midX - width / 2, available.maxX - width))
+            let y = max(available.minY, min(window.frame.maxY - height, available.maxY - height))
+            window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+        }
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)

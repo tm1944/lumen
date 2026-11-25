@@ -13,10 +13,12 @@ open Lumen.app
 
 On first launch, Lumen creates **Lumen Library** in your Documents folder. Choose **Browse books**, click **Open folder in Finder**, and drop in your PDFs. Their first-page previews appear in the open shelf. You can also choose another folder or press **⌘O** to open a PDF directly. Completed marks save to the original PDF.
 
-## Test persistence
+Books open one page at a time. Use the page arrows to turn pages, or use the View menu to zoom in and fit the page again. The reading window keeps its size when you turn a page.
+
+## Run the checks
 
 ```sh
 make test
 ```
 
-The check creates a temporary three-page PDF and a dedicated preferences suite. One process adds marks, bookmarks page 2, and stops on page 3. A second process reopens the PDF, checks the marks and reading position, renames the file, and verifies that a later save preserves an external edit. The test removes its temporary files and preferences on exit.
+The checks use temporary PDFs and isolated preferences. They cover persistence across processes, library setup and updates, and single-page reading in a temporary Mac window.

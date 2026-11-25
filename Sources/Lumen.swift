@@ -18,6 +18,13 @@ struct Lumen: App {
             CommandGroup(after: .newItem) {
                 Button("Open PDF…") { reader.choosePDF() }.keyboardShortcut("o")
             }
+            CommandGroup(after: .toolbar) {
+                Group {
+                    Button("Zoom In") { reader.pdfView?.zoomIn(nil) }.keyboardShortcut("+")
+                    Button("Zoom Out") { reader.pdfView?.zoomOut(nil) }.keyboardShortcut("-")
+                    Button("Fit Page") { reader.pdfView?.autoScales = true }.keyboardShortcut("0")
+                }.disabled(reader.book == nil)
+            }
         }
     }
 }
