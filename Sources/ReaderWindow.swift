@@ -5,6 +5,12 @@ struct ReaderWindow: View {
     @ObservedObject var reader: Reader
     @State private var showingShelf = false
     @State private var showingBookmarks = false
+    @State private var showingWarmth = false
+
+    private var previewLabel: String {
+        guard reader.previewingOriginal else { return "Show original colors" }
+        return reader.pageAppearance == .dark ? "Return to Dark" : "Return to warm pages"
+    }
 
     var body: some View {
         Group {
@@ -20,13 +26,22 @@ struct ReaderWindow: View {
                                 Text(appearance.rawValue).tag(appearance)
                             }
                         }.pickerStyle(.segmented).labelsHidden().fixedSize()
-                        if reader.pageAppearance == .dark {
+                        Button("Warmth") { showingWarmth.toggle() }
+                            .popover(isPresented: $showingWarmth, arrowEdge: .top) {
+                                HStack {
+                                    Text("Neutral")
+                                    Slider(value: $reader.warmth, in: 0...1) { Text("Page warmth") }
+                                        .labelsHidden()
+                                    Text("Warm")
+                                }.padding().frame(width: 280)
+                            }
+                        if reader.pageAppearance == .dark || reader.warmth > 0 {
                             Button { reader.previewingOriginal.toggle() } label: {
-                                Label(reader.previewingOriginal ? "Return to Dark" : "Show original colors",
+                                Label(previewLabel,
                                       systemImage: reader.previewingOriginal ? "eye.fill" : "eye")
                             }
                             .labelStyle(.iconOnly)
-                            .help(reader.previewingOriginal ? "Return to Dark" : "Show original colors")
+                            .help(previewLabel)
                         }
                         Button { reader.jump(reader.state.page - 1) } label: { Image(systemName: "chevron.left") }
                             .disabled(reader.state.page == 0).help("Previous page")

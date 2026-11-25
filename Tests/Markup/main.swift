@@ -205,6 +205,10 @@ do {
         try verify(url, annotated: annotated)
     case "appearance":
         try checkAppearance(url, defaults: defaults)
+    case "warmth":
+        try checkWarmth(url, defaults: defaults)
+    case "reopen-warm":
+        try checkReopenedWarmth(url, defaults: defaults)
     case "reopen-dark":
         try checkDarkInteractions(url, defaults: defaults)
     case "failures":

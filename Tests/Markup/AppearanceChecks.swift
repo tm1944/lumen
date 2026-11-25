@@ -36,7 +36,7 @@ private func eventually(_ check: () throws -> Void) throws {
 }
 
 // Sample the composited window so the check includes PDFKit's paper, text and image layers.
-private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false) throws {
+private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false, warmth: ClosedRange<CGFloat> = -0.05...0.05) throws {
     guard let window = view.window, let page = view.currentPage else { throw MarkupFailure("Missing page") }
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
     defer { try? FileManager.default.removeItem(at: url) }
@@ -61,30 +61,43 @@ private func checkColors(in view: PDFView, dark: Bool, marked: Bool = false) thr
     let direction: CGFloat = dark ? -1 : 1
     let redOverGreen = direction * (figure.redComponent - figure.greenComponent)
     let redOverBlue = direction * (figure.redComponent - figure.blueComponent)
-    guard matches(paper.redComponent, bright: !dark), matches(paper.greenComponent, bright: !dark),
-          matches(paper.blueComponent, bright: !dark), redOverGreen > 0.4, redOverBlue > 0.4
+    guard matches(paper.redComponent, bright: !dark),
+          !dark || (matches(paper.greenComponent, bright: false) && matches(paper.blueComponent, bright: false)),
+          redOverGreen > 0.3, redOverBlue > (warmth.upperBound > 0.05 ? 0.05 : 0.4)
     else { throw MarkupFailure("Wrong page colors (dark=\(dark)): paper \(paper), figure \(figure)") }
     // The fixture has black lettering at this position on both the text page and its scan.
-    var letterPixels = 0
-    for x in 56..<110 {
-        if try matches(color(CGFloat(x), 519).redComponent, bright: dark) { letterPixels += 1 }
+    var letters: [NSColor] = []
+    for y in 515..<525 {
+        for x in 56..<110 {
+            let pixel = try color(CGFloat(x), CGFloat(y))
+            if matches(pixel.redComponent, bright: dark) { letters.append(pixel) }
+        }
     }
-    guard letterPixels >= 5 else { throw MarkupFailure("Missing contrasting lettering on the page") }
+    guard letters.count >= 20, let brightest = letters.max(by: { $0.redComponent < $1.redComponent })
+    else { throw MarkupFailure("Missing contrasting lettering on the page") }
+    let light = dark ? brightest : paper
+    let tone = light.redComponent - light.blueComponent
+    guard warmth.contains(tone), light.greenComponent >= light.blueComponent - 0.025,
+          light.greenComponent <= light.redComponent + 0.025 else {
+        throw MarkupFailure("Expected page warmth in \(warmth), measured \(tone) from \(light)")
+    }
     if marked {
         // Each of these small regions was monochrome before the gesture.
-        let regions = [CGRect(x: 127, y: 509, width: 12, height: 12),
-                       CGRect(x: 177, y: 357, width: 6, height: 6),
-                       CGRect(x: 311, y: 406, width: 18, height: 18)]
-        for region in regions {
+        let regions = [(CGRect(x: 127, y: 509, width: 12, height: 12), dark),    // highlight
+                       (CGRect(x: 177, y: 357, width: 6, height: 6), !dark),     // ink
+                       (CGRect(x: 311, y: 406, width: 18, height: 18), dark)]    // note
+        for (region, blueDominant) in regions {
+            let sign: CGFloat = blueDominant ? -1 : 1
+            let background = max(0, sign * (paper.redComponent - paper.blueComponent))
             var coloredPixels = 0
             for x in Int(region.minX)..<Int(region.maxX) {
                 for y in Int(region.minY)..<Int(region.maxY) {
                     let rgb = try color(CGFloat(x), CGFloat(y))
-                    let channels = [rgb.redComponent, rgb.greenComponent, rgb.blueComponent]
-                    if channels.max()! - channels.min()! > 0.15 { coloredPixels += 1 }
+                    let chroma = rgb.redComponent - rgb.blueComponent
+                    if sign * chroma > background + 0.12 { coloredPixels += 1 }
                 }
             }
-            guard coloredPixels >= 3 else { throw MarkupFailure("Markup missing from visible Dark page at \(region.origin)") }
+            guard coloredPixels >= 3 else { throw MarkupFailure("Markup missing from visible page at \(region.origin)") }
         }
     }
 }
@@ -134,4 +147,80 @@ func checkDarkInteractions(_ url: URL, defaults: UserDefaults) throws {
         try verify(url, annotated: false)
     }
     print("PASS: Dark survives relaunch during a preview; selection, a link and all three markup tools work in Dark")
+}
+
+private let midpointTone: ClosedRange<CGFloat> = 0.06...0.17
+private let warmestTone: ClosedRange<CGFloat> = 0.19...0.65
+
+private func dragWarmthSlider(to fraction: Double, checkWhileDragging: () throws -> Void) throws {
+    var control: NSSlider?
+    try eventually {
+        control = NSApp.windows.filter(\.isVisible).compactMap(\.contentView)
+            .flatMap(descendants).compactMap { $0 as? NSSlider }.first
+        guard control != nil else { throw MarkupFailure("Missing Neutral-to-Warm slider") }
+    }
+    guard let slider = control, let cell = slider.cell as? NSSliderCell, slider.isContinuous else {
+        throw MarkupFailure("Missing live slider")
+    }
+    let knob = cell.knobRect(flipped: slider.isFlipped)
+    let start = NSPoint(x: knob.midX, y: knob.midY)
+    let target = NSPoint(x: slider.bounds.minX + fraction * slider.bounds.width, y: knob.midY)
+    guard cell.startTracking(at: start, in: slider) else { throw MarkupFailure("Start slider drag") }
+    defer { cell.stopTracking(last: start, current: target, in: slider, mouseIsUp: true) }
+    _ = cell.continueTracking(last: start, current: target, in: slider)
+    guard slider.sendAction(slider.action, to: slider.target) else { throw MarkupFailure("Send continuous slider change") }
+    try eventually(checkWhileDragging)
+}
+
+func checkWarmth(_ url: URL, defaults: UserDefaults) throws {
+    let original = try Data(contentsOf: url)
+    try withOpenPage(url, defaults: defaults) { reader, view, _ in
+        guard let window = view.window else { throw MarkupFailure("Missing reading window") }
+        try press("Original", in: window)
+        try press("Warmth", in: window)
+        try dragWarmthSlider(to: 0.5) { try checkColors(in: view, dark: false, warmth: midpointTone) }
+        try dragWarmthSlider(to: 1) { try checkColors(in: view, dark: false, marked: true, warmth: warmestTone) }
+        try press("Warmth", in: window)
+        try press("Show original colors", in: window)
+        try eventually { try checkColors(in: view, dark: false) }
+        try press("Return to warm pages", in: window)
+        try eventually { try checkColors(in: view, dark: false, warmth: warmestTone) }
+        try press("Dark", in: window)
+        try eventually { try checkColors(in: view, dark: true, marked: true, warmth: warmestTone) }
+        try press("Show original colors", in: window)
+        try eventually { try checkColors(in: view, dark: false) }
+        try press("Return to Dark", in: window)
+        reader.jump(1)
+        try eventually { try checkColors(in: view, dark: true, warmth: warmestTone) }
+        try press("Warmth", in: window)
+        try dragWarmthSlider(to: 0) { try checkColors(in: view, dark: true) }
+        try dragWarmthSlider(to: 0.5) { try checkColors(in: view, dark: true, warmth: midpointTone) }
+        try press("Warmth", in: window)
+        try press("Original", in: window)
+        try press("Warmth", in: window)
+        try dragWarmthSlider(to: 0) { try checkColors(in: view, dark: false) }
+        try dragWarmthSlider(to: 0.5) { try checkColors(in: view, dark: false, warmth: midpointTone) }
+        try press("Warmth", in: window)
+
+        let other = url.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".pdf")
+        try FileManager.default.copyItem(at: url, to: other)
+        defer { try? FileManager.default.removeItem(at: other) }
+        reader.open(other)
+        try eventually {
+            guard view.document === reader.book?.document, reader.book?.url == other.standardizedFileURL.resolvingSymlinksInPath()
+            else { throw MarkupFailure("Open second book") }
+            try checkColors(in: view, dark: false, warmth: midpointTone)
+        }
+        guard try Data(contentsOf: other) == original else { throw MarkupFailure("Second PDF changed") }
+        reader.open(url)
+    }
+    guard try Data(contentsOf: url) == original else { throw MarkupFailure("Warmth changed the PDF bytes") }
+    print("PASS: Live warmth, original colors, visible markup and identical PDF bytes")
+}
+
+func checkReopenedWarmth(_ url: URL, defaults: UserDefaults) throws {
+    try withOpenPage(url, defaults: defaults) { _, view, _ in
+        try eventually { try checkColors(in: view, dark: false, warmth: midpointTone) }
+    }
+    print("PASS: A fresh reader process opens the PDF at the chosen intermediate warmth")
 }

@@ -15,7 +15,7 @@ struct PageView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: MarkupView, context: Context) {
-        defer { view.setDarkPage(reader.displaysDarkPage) }
+        defer { view.setPageAppearance(dark: reader.displaysDarkPage, warmth: reader.previewingOriginal ? 0 : reader.warmth) }
         guard let book = reader.book, view.document !== book.document else { return }
         let page = reader.state.page
         view.restoring = true
@@ -55,15 +55,32 @@ final class MarkupView: PDFView {
     private var initialPage: PDFPage?
 
     private lazy var darkFilter: CIFilter = CIFilter.colorInvert()
+    private var warmthFilter: CIFilter?
+    private var appliedWarmth = 0.0
 
-    func setDarkPage(_ enabled: Bool) {
+    func setPageAppearance(dark: Bool, warmth: Double) {
         guard let content = documentView else { return }
-        guard enabled || !content.contentFilters.isEmpty else { return }
-        if let index = content.contentFilters.firstIndex(where: { $0 as AnyObject === darkFilter }) {
-            if !enabled { content.contentFilters.remove(at: index) }
-        } else if enabled {
-            content.contentFilters.append(darkFilter)
+        var filters = content.contentFilters
+        let oldWarmth = warmthFilter
+        let warmthChanged = appliedWarmth != warmth
+        if warmthChanged {
+            appliedWarmth = warmth
+            warmthFilter = nil
+            if warmth > 0 {
+                let matrix = CIFilter.colorMatrix()
+                // Scale green and blue after inversion so black always stays black.
+                matrix.gVector = CIVector(x: 0, y: 1 - 0.24 * warmth, z: 0, w: 0)
+                matrix.bVector = CIVector(x: 0, y: 0, z: 1 - 0.58 * warmth, w: 0)
+                warmthFilter = matrix
+            }
         }
+        let hasDark = filters.contains { $0 as AnyObject === darkFilter }
+        let hasWarmth = filters.contains { $0 as AnyObject === warmthFilter }
+        guard warmthChanged || hasDark != dark || hasWarmth != (warmthFilter != nil) else { return }
+        filters.removeAll { $0 as AnyObject === darkFilter || $0 as AnyObject === oldWarmth }
+        if dark { filters.append(darkFilter) }
+        if let warmthFilter { filters.append(warmthFilter) }
+        content.contentFilters = filters
     }
 
     func fitWindowOnOpen(to page: PDFPage) {

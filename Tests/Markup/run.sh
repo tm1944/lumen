@@ -16,3 +16,5 @@ done
 "$1" failures "$fixture/annotated.pdf" annotated "$suite"
 "$1" appearance "$fixture/appearance.pdf" plain "$suite"
 "$1" reopen-dark "$fixture/appearance.pdf" plain "$suite"
+"$1" warmth "$fixture/appearance.pdf" plain "$suite"
+"$1" reopen-warm "$fixture/appearance.pdf" plain "$suite"

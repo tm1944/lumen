@@ -15,7 +15,7 @@ On first launch, Lumen creates **Lumen Library** in your Documents folder. Choos
 
 Books open one page at a time. Use the page arrows to turn pages, or use the View menu to zoom in and fit the page again. The reading window keeps its size when you turn a page.
 
-Choose **Dark** below the page for black paper and light text, including in scans. Click the eye beside **Dark** to inspect a figure in its original colors. Click it again to return to Dark. Lumen remembers your selected appearance across books and launches. These controls only affect the reading window.
+Choose **Dark** below the page for black paper and light text, including in scans. Open **Warmth** and drag the slider toward **Warm** for cream paper in Original or warmer lettering in Dark. Click the eye to inspect a figure in its original colors, and click again to restore your settings. Lumen remembers both settings across books and launches. These controls only affect the reading window.
 
 ## Run the checks
 

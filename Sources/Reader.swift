@@ -109,6 +109,12 @@ final class Reader: ObservableObject {
             previewingOriginal = false
         }
     }
+    @Published var warmth: Double {
+        didSet {
+            defaults.set(warmth, forKey: "pageWarmth")
+            previewingOriginal = false
+        }
+    }
     @Published var previewingOriginal = false
     var displaysDarkPage: Bool { pageAppearance == .dark && !previewingOriginal }
     @Published var tool = ReadingTool.read
@@ -122,6 +128,7 @@ final class Reader: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        warmth = min(1, max(0, defaults.double(forKey: "pageWarmth")))
         pageAppearance = defaults.string(forKey: "pageAppearance").flatMap(PageAppearance.init(rawValue:)) ?? .original
         folder = defaults.url(forKey: "folder")
         librarySetupError = defaults.string(forKey: "librarySetupError")
